@@ -33,6 +33,19 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local user database (contains password hashes)
+/data
+
+# python
+__pycache__/
+*.pyc
+
+# stale YOLOv8 weights — superseded by MediaPipe + Gemini, see CHANGELOG.md
+yolov8n-pose.pt
+
+# MediaPipe pose model — auto-downloaded by vision_engine.py on first run
+pose_landmarker_full.task
+
 # vercel
 .vercel
 

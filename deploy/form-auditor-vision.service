@@ -1,0 +1,19 @@
+[Unit]
+Description=Form Auditor - Vision engine (FastAPI/MediaPipe/Gemini)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ai-project
+EnvironmentFile=/home/ubuntu/ai-project/.env.production
+# Bound to localhost only, deliberately — this replicates the same
+# "never reachable from outside the machine" property the earlier Docker
+# setup got from having no `ports:` mapping at all. The Next.js app on the
+# same instance reaches it via VISION_ENGINE_URL=http://127.0.0.1:8000/analyze.
+ExecStart=/home/ubuntu/ai-project/venv/bin/uvicorn vision_engine:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

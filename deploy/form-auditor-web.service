@@ -1,0 +1,17 @@
+[Unit]
+Description=Form Auditor - Next.js app
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ai-project
+EnvironmentFile=/home/ubuntu/ai-project/.env.production
+Environment=VISION_ENGINE_URL=http://127.0.0.1:8000/analyze
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

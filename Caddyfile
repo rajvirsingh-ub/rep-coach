@@ -1,0 +1,5 @@
+# Replace with your real DuckDNS domain, then this file is meant to be
+# copied to /etc/caddy/Caddyfile on the EC2 instance. See DEPLOY.md.
+yourname.duckdns.org {
+    reverse_proxy 127.0.0.1:3000
+}

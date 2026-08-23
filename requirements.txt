@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+opencv-python-headless
+# mediapipe==1.0.x has a macOS/Metal-delegate crash (see CHANGELOG.md) that
+# doesn't exist on Linux — pinned per-platform rather than to one version.
+mediapipe==0.10.35; sys_platform == "darwin"
+mediapipe==0.10.18; sys_platform == "linux"
+google-genai
+python-dotenv
+pydantic

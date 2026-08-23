@@ -2,10 +2,14 @@ fastapi
 uvicorn[standard]
 python-multipart
 opencv-python-headless
-# mediapipe==1.0.x has a macOS/Metal-delegate crash (see CHANGELOG.md) that
-# doesn't exist on Linux — pinned per-platform rather than to one version.
-mediapipe==0.10.35; sys_platform == "darwin"
-mediapipe==0.10.18; sys_platform == "linux"
+# mediapipe==1.0.x has a macOS/Metal-delegate crash (see CHANGELOG.md).
+# 0.10.35 is confirmed to avoid it there. A per-platform pin was tried
+# (0.10.18 on Linux) but that version isn't available for every Linux
+# glibc/manylinux combination — Ubuntu 24.04 (real EC2 target) resolves a
+# different wheel set than Debian slim (what got tested in Docker) and
+# doesn't have it at all. 0.10.35 is available on both, so one pin covers
+# everything without needing to chase per-distro wheel availability.
+mediapipe==0.10.35
 google-genai
 python-dotenv
 pydantic

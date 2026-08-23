@@ -7,6 +7,17 @@ in a passing conversation.
 
 ---
 
+## Fixed mediapipe pin for the real EC2 target — 2026-08-24
+
+The per-platform `mediapipe` pin (0.10.35 macOS / 0.10.18 Linux) was
+validated against a Docker `python:3.11-slim` (Debian) image, not the
+actual deployment target. On the real EC2 instance (Ubuntu 24.04, once
+Docker was dropped), `pip install` failed — `0.10.18` isn't available for
+that glibc/manylinux combination at all; Ubuntu 24.04 resolves an entirely
+different wheel set than Debian slim. Dropped the platform split, pinned
+`mediapipe==0.10.35` everywhere (confirmed available on both, and it's the
+version already known not to hit the macOS Metal-delegate crash).
+
 ## Deployment: dropped Docker, direct systemd on EC2 instead — 2026-08-24
 
 Reversed the Docker/ECR plan below in favor of running both services

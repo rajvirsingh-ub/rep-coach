@@ -22,9 +22,9 @@ export async function sendOtpEmail(email: string, code: string): Promise<void> {
   }
 
   await transporter.sendMail({
-    from: `"Form Auditor" <${GMAIL_USER}>`,
+    from: `"Rep Coach" <${GMAIL_USER}>`,
     to: email,
-    subject: "Your Form Auditor verification code",
+    subject: "Your Rep Coach verification code",
     html: `
       <div style="font-family: sans-serif; padding: 24px;">
         <h2 style="margin-bottom: 8px;">Verify your email</h2>
@@ -44,9 +44,9 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
   }
 
   await transporter.sendMail({
-    from: `"Form Auditor" <${GMAIL_USER}>`,
+    from: `"Rep Coach" <${GMAIL_USER}>`,
     to: email,
-    subject: "Reset your Form Auditor password",
+    subject: "Reset your Rep Coach password",
     html: `
       <div style="font-family: sans-serif; padding: 24px;">
         <h2 style="margin-bottom: 8px;">Reset your password</h2>
@@ -66,13 +66,13 @@ export async function sendPasswordChangedNotificationEmail(email: string): Promi
   }
 
   await transporter.sendMail({
-    from: `"Form Auditor" <${GMAIL_USER}>`,
+    from: `"Rep Coach" <${GMAIL_USER}>`,
     to: email,
     subject: "Your password was changed",
     html: `
       <div style="font-family: sans-serif; padding: 24px;">
         <h2 style="margin-bottom: 8px;">Password changed</h2>
-        <p>The password for your Form Auditor account (${email}) was just changed.</p>
+        <p>The password for your Rep Coach account (${email}) was just changed.</p>
         <p style="color: #666;">If this was you, no action is needed. If you didn't make this change, someone else may have access to your email — reset your password again immediately.</p>
       </div>
     `,
@@ -87,13 +87,13 @@ export async function sendVerifiedConfirmationEmail(email: string): Promise<void
   }
 
   await transporter.sendMail({
-    from: `"Form Auditor" <${GMAIL_USER}>`,
+    from: `"Rep Coach" <${GMAIL_USER}>`,
     to: email,
     subject: "Your email is verified",
     html: `
       <div style="font-family: sans-serif; padding: 24px;">
         <h2 style="margin-bottom: 8px;">You're verified!</h2>
-        <p>Your email address (${email}) has been successfully verified. Your Form Auditor account is now fully active.</p>
+        <p>Your email address (${email}) has been successfully verified. Your Rep Coach account is now fully active.</p>
       </div>
     `,
   });

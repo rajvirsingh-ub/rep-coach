@@ -7,6 +7,44 @@ in a passing conversation.
 
 ---
 
+## First live deployment + fixes — 2026-08-24
+
+App successfully deployed and running at `repcoach.duckdns.org`. Real
+issues hit and fixed along the way, beyond the mediapipe pin below:
+
+- **Wrong AMI**: the EC2 instance launched on Ubuntu 26.04 (very new,
+  ships Python 3.14 by default) instead of the 24.04 LTS `DEPLOY.md`
+  assumed. `python3.11` wasn't in the default repos and deadsnakes hadn't
+  built packages for 26.04 yet. Resolved by using `python3.13` (available
+  via apt on this instance) instead of compiling 3.11 from source — worked
+  once the missing native libraries below were installed.
+- **`libGL.so.1` missing** (same root cause as the earlier Docker
+  validation — mediapipe pulls in the full `opencv-contrib-python`
+  regardless of the headless variant declared directly): fixed via
+  `apt-get install libgl1 libglib2.0-0` directly on the instance.
+- **`libGLESv2.so.2` missing**: a second, different native dependency —
+  MediaPipe's own shared library links against GLES/EGL symbols at load
+  time even when only the CPU delegate is used. Not caught by the earlier
+  Docker validation (that used a different mediapipe wheel — cp311 vs.
+  cp313 — which apparently has different dynamic library dependencies).
+  Fixed via `apt-get install libgles2 libegl1`. `DEPLOY.md` step 4 updated
+  to install all four (`libgl1 libglib2.0-0 libgles2 libegl1`) upfront.
+- **Systemd paths pointed at `ai-project`, actual clone is `rep-coach`**:
+  the unit files and `DEPLOY.md` assumed the clone directory would match
+  the local dev folder name; fixed to match the real repo name throughout.
+- **Admin login confusion**: `ADMIN_EMAILS` only grants `isAdmin: true` to
+  an already-authenticated session — it doesn't create an account.
+  Production's `data/app.db` is a fresh, empty database with no relation
+  to the local dev one all earlier testing used, so the admin email had no
+  row in the `users` table. Fixed by signing up normally through
+  `/signup` with that email.
+- **Sign-out redirected to `localhost` in production**: `trustHost: true`
+  wasn't reliably resolving the real origin through Caddy for the
+  `signOut()` redirect specifically (other auth flows were unaffected).
+  Added an explicit `AUTH_URL` to `.env.production.example` — more
+  reliable than header-based auto-detection when the domain is fixed and
+  known ahead of time, which it is here.
+
 ## Fixed mediapipe pin for the real EC2 target — 2026-08-24
 
 The per-platform `mediapipe` pin (0.10.35 macOS / 0.10.18 Linux) was

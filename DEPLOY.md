@@ -43,9 +43,20 @@ cd rep-coach
 
 ### 4. Install system dependencies
 
+**Double-check the AMI is actually Ubuntu 24.04 LTS first** (`lsb_release -a`)
+— pick it explicitly in the AMI search rather than trusting "latest
+Ubuntu," which can resolve to a much newer non-LTS release. A first
+deployment hit Ubuntu 26.04 this way, which ships Python 3.14 by default
+and broke `python3.11` availability entirely (see `CHANGELOG.md`). If
+you're stuck on a non-24.04 instance for some reason, `python3.13` (if
+available via apt) is a confirmed-working fallback — just substitute it
+for `python3.11` everywhere below.
+
 ```bash
 sudo apt-get update
-sudo apt-get install -y curl git unzip libgl1 libglib2.0-0 python3.11 python3.11-venv
+sudo apt-get install -y curl git unzip \
+  libgl1 libglib2.0-0 libgles2 libegl1 \
+  python3.11 python3.11-venv
 
 # Node.js 22
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -59,10 +70,14 @@ sudo apt-get update
 sudo apt-get install -y caddy
 ```
 
-`libgl1`/`libglib2.0-0` matter: mediapipe pulls in the full
-`opencv-contrib-python` as a transitive dependency regardless of the
-`opencv-python-headless` declared directly in `requirements.txt`, and the
-full variant needs `libGL.so.1` at import time.
+Those four graphics libraries matter because of two separate issues:
+- `libgl1`/`libglib2.0-0`: mediapipe pulls in the full
+  `opencv-contrib-python` as a transitive dependency regardless of the
+  `opencv-python-headless` declared directly in `requirements.txt`, and
+  the full variant needs `libGL.so.1` at import time.
+- `libgles2`/`libegl1`: MediaPipe's own native shared library links
+  against GLES/EGL symbols at load time even when only the CPU delegate
+  is actually used at runtime.
 
 ### 5. Build the app
 
@@ -85,8 +100,9 @@ network dependency.)
 
 ```bash
 cp .env.production.example .env.production
-nano .env.production   # fill in AUTH_SECRET, AUTH_GITHUB_ID/SECRET,
-                        # GMAIL_USER/APP_PASSWORD, ADMIN_EMAILS, GEMINI_API_KEY
+nano .env.production   # fill in AUTH_URL (your real domain), AUTH_SECRET,
+                        # AUTH_GITHUB_ID/SECRET, GMAIL_USER/APP_PASSWORD,
+                        # ADMIN_EMAILS, GEMINI_API_KEY
 ```
 
 ### 7. systemd services

@@ -37,12 +37,9 @@ Sign in at duckdns.org, claim a subdomain, point it at the Elastic IP.
 
 ```bash
 ssh -i your-key.pem ubuntu@<ELASTIC_IP>
-git clone <your-repo-url> ai-project
-cd ai-project
+git clone https://github.com/rajvirsingh-ub/rep-coach.git
+cd rep-coach
 ```
-
-(This needs the project pushed to a git remote first — see the note at the
-bottom of this file.)
 
 ### 4. Install system dependencies
 
@@ -70,7 +67,7 @@ full variant needs `libGL.so.1` at import time.
 ### 5. Build the app
 
 ```bash
-cd ~/ai-project
+cd ~/rep-coach
 
 npm ci
 npm run build
@@ -102,7 +99,7 @@ sudo systemctl enable --now form-auditor-web form-auditor-vision
 sudo systemctl status form-auditor-web form-auditor-vision
 ```
 
-Both units use `EnvironmentFile=/home/ubuntu/ai-project/.env.production`
+Both units use `EnvironmentFile=/home/ubuntu/rep-coach/.env.production`
 and `Restart=always` — if either process crashes or the instance reboots,
 systemd brings it back automatically.
 
@@ -129,7 +126,7 @@ Authorization callback URL → `https://<your-duckdns-domain>/api/auth/callback/
 
 ```bash
 ssh -i your-key.pem ubuntu@<ELASTIC_IP>
-cd ai-project
+cd rep-coach
 git pull
 npm ci
 npm run build
@@ -152,6 +149,4 @@ sudo systemctl restart form-auditor-web
 
 ---
 
-**Still needed before any of this works**: this project has no git remote
-yet (only a local, uncommitted-since-scaffold repo — see `CHANGELOG.md`).
-Step 3 above needs somewhere to clone from.
+Repo: `https://github.com/rajvirsingh-ub/rep-coach.git`.

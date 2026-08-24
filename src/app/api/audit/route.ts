@@ -44,6 +44,7 @@ export async function POST(request: Request) {
       detectedFlaws: [],
       formAnalysisFeedback: "",
       formCorrections: [],
+      annotatedImage: null,
     });
 
     return NextResponse.json({
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
         detectedFlaws: result.detectedFlaws,
         feedback: result.formAnalysisFeedback,
         formCorrections: result.formCorrections,
+        annotatedImage: result.annotatedImage,
       },
     });
   } catch (error: any) {

@@ -14,12 +14,14 @@ export interface PoseAnalysisResult {
   detectedFlaws: string[];
   formAnalysisFeedback: string;
   formCorrections: string[];
+  annotatedImage: string | null;
 }
 
 interface VisionEngineResponse {
   detected_flaws: string[];
   form_analysis_feedback: string;
   form_corrections: string[];
+  annotated_image: string | null;
 }
 
 async function extractErrorMessage(response: Response): Promise<string> {
@@ -84,5 +86,6 @@ export async function analyzeVideoFrames(
     detectedFlaws: data.detected_flaws,
     formAnalysisFeedback: data.form_analysis_feedback,
     formCorrections: data.form_corrections,
+    annotatedImage: data.annotated_image,
   };
 }

@@ -10,6 +10,11 @@ export interface WorkoutHistoryEntry {
   feedback: string;
   detectedFlaws: string[];
   formCorrections: string[];
+  // Optional: entries saved before this field existed won't have it, and
+  // it's a base64 JPEG data URI (tens of KB) so it meaningfully adds to
+  // localStorage usage — kept small/downscaled server-side to stay within
+  // typical per-origin quotas even across MAX_ENTRIES history items.
+  annotatedImage?: string | null;
 }
 
 const MAX_ENTRIES = 50;

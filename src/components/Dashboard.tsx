@@ -11,6 +11,7 @@ interface AuditResult {
   detectedFlaws: string[];
   feedback: string;
   formCorrections: string[];
+  annotatedImage: string | null;
 }
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -93,6 +94,7 @@ export function Dashboard({ session }: { session: Session }) {
         feedback: auditResult.feedback,
         detectedFlaws: auditResult.detectedFlaws,
         formCorrections: auditResult.formCorrections,
+        annotatedImage: auditResult.annotatedImage,
       });
     } catch (err: any) {
       setErrorMessage(err.message ?? "Unknown error");
@@ -117,6 +119,7 @@ export function Dashboard({ session }: { session: Session }) {
       detectedFlaws: entry.detectedFlaws,
       feedback: entry.feedback,
       formCorrections: entry.formCorrections,
+      annotatedImage: entry.annotatedImage ?? null,
     });
     setStatus("success");
     setShowHistoryMobile(false);
@@ -360,6 +363,28 @@ export function Dashboard({ session }: { session: Session }) {
 
             {status === "success" && result && (
               <div className="mt-6 space-y-4">
+                {result.annotatedImage && (
+                  <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <h2 className="flex items-center gap-2 border-b border-zinc-200 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                      <ImageIcon className="size-4" />
+                      Visual Breakdown
+                    </h2>
+                    <div className="flex justify-center bg-zinc-100 p-4 dark:bg-zinc-900">
+                      <img
+                        src={result.annotatedImage}
+                        alt="Pose overlay highlighting flagged form issues in red"
+                        className="max-h-96 rounded-lg object-contain"
+                      />
+                    </div>
+                    {result.detectedFlaws.length > 0 && (
+                      <p className="flex items-center gap-1.5 px-5 py-3 text-xs text-zinc-500 dark:text-zinc-500">
+                        <span className="size-2 shrink-0 rounded-full bg-red-500" />
+                        Red markers show the joints/regions involved in the flaws below
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {result.detectedFlaws.length === 0 && (
                   <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/30">
                     <CheckCircleIcon className="size-6 shrink-0 text-emerald-500" />
@@ -544,6 +569,16 @@ function CalendarIcon({ className = "size-4" }: { className?: string }) {
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+function ImageIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-5-5L5 21" />
     </svg>
   );
 }

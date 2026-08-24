@@ -7,6 +7,61 @@ in a passing conversation.
 
 ---
 
+## Visual form breakdown: annotated skeleton overlay — 2026-08-25
+
+Users find a picture more useful than a wall of text, so results now
+include an actual annotated frame from the uploaded video — a skeleton
+overlay with the specific joints/regions involved in each flaw drawn in
+red, everything else in green/white — alongside the existing text
+feedback.
+
+- **`vision_engine.py`**: `GeminiFormAnalysis` gained a new
+  `flaw_highlights` field — for each entry in `detected_flaws`, Gemini
+  (which is already watching the video) names the 1-3 body regions most
+  directly responsible, chosen from a fixed enum (`left_knee`,
+  `right_hip`, `spine`, etc.) so the values map cleanly onto drawable
+  landmarks. Chose this over a keyword-matching approach (e.g. `if "knee"
+  in flaw.lower()`) because flaws are free-form 2-4 word tags from an LLM
+  — brittle to match reliably by regex, whereas Gemini already has the
+  actual visual context to make this judgment directly, and validated
+  well in testing (e.g. a genuinely new flaw type, "improper footwear",
+  correctly got mapped to `left_ankle`/`right_ankle`, and a forward-lean
+  flaw pulled in `spine` + both hips — regions a naive keyword match on
+  "lean" would have missed entirely).
+- `_sample_pose_frames` now also tracks the single clearest sampled frame
+  (highest average landmark visibility) and returns its raw pixels
+  alongside its landmarks — kept in memory only for that one frame, not
+  the whole clip, to avoid ballooning memory usage.
+- New `_render_annotated_frame`: draws the skeleton (via OpenCV
+  `cv2.line`/`cv2.circle`) on that clearest frame, red for
+  bones/joints/spine/head tied to a flagged region, green/white
+  otherwise. Downscaled to 480px width and JPEG-compressed (quality 60)
+  before being base64-encoded into a `data:image/jpeg;base64,...` URI in
+  the response — keeps payload size small (~30-50KB typical).
+- Explicitly documented as best-effort: Gemini reasons over the whole
+  clip holistically and doesn't report *when* a flaw occurred, so the
+  overlay is drawn on the clearest available frame, not necessarily the
+  exact moment the flaw happened.
+- Threaded `annotatedImage` through the whole stack:
+  `vision.ts` → `graph.ts` (`FormCorrectionState` gained the field) →
+  `route.ts` → `Dashboard.tsx`. New "Visual Breakdown" card renders it
+  above the text results, with a small legend explaining the red
+  markers.
+- `useWorkoutHistory`'s `WorkoutHistoryEntry` gained an optional
+  `annotatedImage` field so past sessions in "Recent Sessions" retain
+  their image too — optional (not required) since entries saved before
+  this feature won't have it. Flagged as a real tradeoff: this is a
+  base64 image (tens of KB) persisted per history entry in `localStorage`,
+  which meaningfully raises per-entry storage use versus the previous
+  all-text entries — mitigated by keeping the image small/compressed and
+  by the existing `MAX_ENTRIES` cap and try/catch quota-exceeded fallback
+  already in the hook.
+- Validated with real videos end-to-end through the full production path
+  (Next.js → LangGraph → `vision.ts` → `vision_engine.py`), not just unit
+  tested — confirmed the primary-subject selection stays correct even in
+  the multi-person "carried partner" case, and visually inspected the
+  rendered overlay.
+
 ## Dashboard functional polish — 2026-08-25
 
 The previous pass restyled the dashboard's header/buttons but left the

@@ -12,21 +12,31 @@ Pipeline:
           -> biomechanics summary (joint angles, self-calibrated lean, etc.)
           -> Gemini (video file + biomechanics summary as grounding context)
           -> structured JSON: activity mismatch / flaws / feedback / corrections
+                               / which body regions each flaw involves
+          -> annotated still frame (skeleton overlay, flagged regions in red)
 
 Video leaves the machine (uploaded to the Gemini API) so it can actually
 watch the movement, not just crunch landmark numbers. MediaPipe's local
 pass is what grounds Gemini's read in real measurements instead of letting
 it guess purely from pixels, and lets us reject obviously-empty/unusable
 videos before spending an API call on them.
+
+The annotated frame is a best-effort visual aid, not a claim of precise
+timing: Gemini reasons over the whole clip holistically and doesn't tell
+us *when* a flaw occurred, so we draw the overlay on the clearest frame we
+sampled (highest average landmark visibility), not necessarily the exact
+moment the flaw happened.
 """
 
 import asyncio
+import base64
 import math
 import os
 import tempfile
 import time
 import urllib.request
 from pathlib import Path
+from typing import Literal
 
 import cv2
 import mediapipe as mp
@@ -81,6 +91,7 @@ _pose_landmarker = mp_vision.PoseLandmarker.create_from_options(
 )
 
 # MediaPipe Pose landmark indices (33-point model)
+NOSE = 0
 LEFT_SHOULDER, RIGHT_SHOULDER = 11, 12
 LEFT_ELBOW, RIGHT_ELBOW = 13, 14
 LEFT_WRIST, RIGHT_WRIST = 15, 16
@@ -93,9 +104,49 @@ FULL_BODY_LANDMARKS = [
     LEFT_HIP, RIGHT_HIP, LEFT_KNEE, RIGHT_KNEE, LEFT_ANKLE, RIGHT_ANKLE,
 ]
 
+BONE_CONNECTIONS = [
+    (LEFT_SHOULDER, RIGHT_SHOULDER),
+    (LEFT_SHOULDER, LEFT_ELBOW), (LEFT_ELBOW, LEFT_WRIST),
+    (RIGHT_SHOULDER, RIGHT_ELBOW), (RIGHT_ELBOW, RIGHT_WRIST),
+    (LEFT_SHOULDER, LEFT_HIP), (RIGHT_SHOULDER, RIGHT_HIP),
+    (LEFT_HIP, RIGHT_HIP),
+    (LEFT_HIP, LEFT_KNEE), (LEFT_KNEE, LEFT_ANKLE),
+    (RIGHT_HIP, RIGHT_KNEE), (RIGHT_KNEE, RIGHT_ANKLE),
+]
+
+BodyRegion = Literal[
+    "left_shoulder", "right_shoulder",
+    "left_elbow", "right_elbow",
+    "left_wrist", "right_wrist",
+    "left_hip", "right_hip",
+    "left_knee", "right_knee",
+    "left_ankle", "right_ankle",
+    "spine", "head",
+]
+
+REGION_TO_LANDMARK_INDEX = {
+    "left_shoulder": LEFT_SHOULDER,
+    "right_shoulder": RIGHT_SHOULDER,
+    "left_elbow": LEFT_ELBOW,
+    "right_elbow": RIGHT_ELBOW,
+    "left_wrist": LEFT_WRIST,
+    "right_wrist": RIGHT_WRIST,
+    "left_hip": LEFT_HIP,
+    "right_hip": RIGHT_HIP,
+    "left_knee": LEFT_KNEE,
+    "right_knee": RIGHT_KNEE,
+    "left_ankle": LEFT_ANKLE,
+    "right_ankle": RIGHT_ANKLE,
+    # "spine" and "head" aren't single COCO-style joints — handled specially
+    # in _render_annotated_frame (spine = shoulder/hip midline, head = nose).
+}
+
 MAX_SAMPLED_FRAMES = 30
 MIN_PERSON_DETECTION_RATIO = 0.4
 MIN_LANDMARK_VISIBILITY = 0.4
+
+ANNOTATED_IMAGE_MAX_WIDTH = 480
+ANNOTATED_IMAGE_JPEG_QUALITY = 60
 
 # --- Gemini setup ------------------------------------------------------------
 
@@ -105,11 +156,17 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 _gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
+class FlawHighlight(BaseModel):
+    flaw: str
+    body_regions: list[BodyRegion]
+
+
 class GeminiFormAnalysis(BaseModel):
     activity_mismatch: str | None
     detected_flaws: list[str]
     form_analysis_feedback: str
     form_corrections: list[str]
+    flaw_highlights: list[FlawHighlight] = []
 
 
 PROMPT_TEMPLATE = """You are an experienced strength & conditioning coach reviewing a client's set.
@@ -149,8 +206,15 @@ Watch the attached video together with the pose-tracking summary above, then res
    observed — not generic advice, and consistent with any constraints the client noted (don't
    suggest increasing range of motion or load that conflicts with a stated limitation).
 
-If activity_mismatch is set, detected_flaws and form_corrections should be empty lists and
-form_analysis_feedback can restate the mismatch briefly.
+7. "flaw_highlights": for each entry in detected_flaws, list the 1-3 body regions most directly
+   involved in that flaw, chosen only from this fixed set: left_shoulder, right_shoulder,
+   left_elbow, right_elbow, left_wrist, right_wrist, left_hip, right_hip, left_knee, right_knee,
+   left_ankle, right_ankle, spine, head. Use "spine" for torso/back/lean issues. We use this to
+   draw red markers on a still frame, so only include regions you're confident are the actual
+   source of that specific flaw. Empty list if detected_flaws is empty.
+
+If activity_mismatch is set, detected_flaws, form_corrections, and flaw_highlights should be
+empty lists and form_analysis_feedback can restate the mismatch briefly.
 
 Respond only with the structured JSON.
 """
@@ -228,7 +292,9 @@ async def analyze(
         tmp_path = tmp.name
 
     try:
-        total_sampled, pose_frames = await asyncio.to_thread(_sample_pose_frames, tmp_path)
+        total_sampled, pose_frames, best_frame_bgr, best_frame_image_lm = await asyncio.to_thread(
+            _sample_pose_frames, tmp_path
+        )
         _validate_pose_presence(total_sampled, pose_frames)
 
         carrying_extra_load = _detect_carried_person(pose_frames)
@@ -245,12 +311,25 @@ async def analyze(
             "detected_flaws": [],
             "form_analysis_feedback": analysis.activity_mismatch,
             "form_corrections": [],
+            "annotated_image": None,
         }
+
+    annotated_image = None
+    if best_frame_bgr is not None:
+        try:
+            flagged_regions = {
+                region for fh in analysis.flaw_highlights for region in fh.body_regions
+            }
+            jpeg_bytes = _render_annotated_frame(best_frame_bgr, best_frame_image_lm, flagged_regions)
+            annotated_image = "data:image/jpeg;base64," + base64.b64encode(jpeg_bytes).decode("ascii")
+        except Exception as e:
+            print(f"[analyze] Failed to render annotated frame: {e}")
 
     return {
         "detected_flaws": analysis.detected_flaws,
         "form_analysis_feedback": analysis.form_analysis_feedback,
         "form_corrections": analysis.form_corrections,
+        "annotated_image": annotated_image,
     }
 
 
@@ -260,9 +339,14 @@ async def analyze(
 def _sample_pose_frames(video_path: str):
     """Runs MediaPipe pose estimation once per sampled frame.
 
-    Returns (total_sampled, detected): detected is a list of
-    (primary_image_landmarks, primary_world_landmarks, other_people) tuples,
-    one per sampled frame that had at least one person in it.
+    Returns (total_sampled, detected, best_frame_bgr, best_frame_image_lm):
+    - detected is a list of (primary_image_landmarks, primary_world_landmarks,
+      other_people) tuples, one per sampled frame that had at least one
+      person in it.
+    - best_frame_bgr / best_frame_image_lm are the raw frame (as a BGR numpy
+      array) and its landmarks for whichever sampled frame had the highest
+      average landmark visibility — used later to draw the annotated overlay
+      on the clearest available frame. None if no frame had a detection.
     """
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
@@ -270,6 +354,9 @@ def _sample_pose_frames(video_path: str):
 
     total_sampled = 0
     detected = []
+    best_frame_bgr = None
+    best_frame_image_lm = None
+    best_visibility = -1.0
     frame_index = 0
 
     while True:
@@ -281,12 +368,19 @@ def _sample_pose_frames(video_path: str):
             total_sampled += 1
             pose = _run_pose_estimation(frame)
             if pose is not None:
+                image_lm, _, _ = pose
                 detected.append(pose)
+
+                visibility = float(np.mean([image_lm[i].visibility for i in FULL_BODY_LANDMARKS]))
+                if visibility > best_visibility:
+                    best_visibility = visibility
+                    best_frame_bgr = frame.copy()
+                    best_frame_image_lm = image_lm
 
         frame_index += 1
 
     cap.release()
-    return total_sampled, detected
+    return total_sampled, detected, best_frame_bgr, best_frame_image_lm
 
 
 def _run_pose_estimation(frame_bgr):
@@ -388,6 +482,70 @@ def _detect_carried_person(pose_frames: list) -> bool:
                 break
 
     return hits / len(pose_frames) > 0.4
+
+
+# --- Annotated frame rendering ----------------------------------------------
+
+
+def _render_annotated_frame(frame_bgr, image_lm, flagged_regions: set[str]) -> bytes:
+    """Draws a skeleton overlay on the given frame, with bones/joints tied to
+    a flagged body region drawn in red and everything else in green/white.
+    Returns JPEG-encoded bytes, downscaled to keep the base64 payload small.
+    """
+    h, w = frame_bgr.shape[:2]
+    annotated = frame_bgr.copy()
+
+    def px(idx: int) -> tuple[int, int]:
+        lm = image_lm[idx]
+        return int(lm.x * w), int(lm.y * h)
+
+    GREEN = (80, 220, 120)  # BGR
+    RED = (60, 60, 255)
+    WHITE = (255, 255, 255)
+    OUTLINE = (30, 30, 30)
+
+    flagged_landmark_indices = {
+        REGION_TO_LANDMARK_INDEX[region]
+        for region in flagged_regions
+        if region in REGION_TO_LANDMARK_INDEX
+    }
+    highlight_spine = "spine" in flagged_regions
+    highlight_head = "head" in flagged_regions
+
+    for a, b in BONE_CONNECTIONS:
+        color = RED if (a in flagged_landmark_indices or b in flagged_landmark_indices) else GREEN
+        cv2.line(annotated, px(a), px(b), color, 3, cv2.LINE_AA)
+
+    shoulder_mid = (
+        int((image_lm[LEFT_SHOULDER].x + image_lm[RIGHT_SHOULDER].x) / 2 * w),
+        int((image_lm[LEFT_SHOULDER].y + image_lm[RIGHT_SHOULDER].y) / 2 * h),
+    )
+    hip_mid = (
+        int((image_lm[LEFT_HIP].x + image_lm[RIGHT_HIP].x) / 2 * w),
+        int((image_lm[LEFT_HIP].y + image_lm[RIGHT_HIP].y) / 2 * h),
+    )
+    cv2.line(annotated, shoulder_mid, hip_mid, RED if highlight_spine else GREEN, 3, cv2.LINE_AA)
+    cv2.line(annotated, px(NOSE), shoulder_mid, RED if highlight_head else GREEN, 3, cv2.LINE_AA)
+
+    for idx in FULL_BODY_LANDMARKS:
+        flagged = idx in flagged_landmark_indices
+        color = RED if flagged else WHITE
+        radius = 9 if flagged else 6
+        cv2.circle(annotated, px(idx), radius, color, -1, cv2.LINE_AA)
+        cv2.circle(annotated, px(idx), radius, OUTLINE, 2, cv2.LINE_AA)
+
+    head_radius = 10 if highlight_head else 7
+    cv2.circle(annotated, px(NOSE), head_radius, RED if highlight_head else WHITE, -1, cv2.LINE_AA)
+    cv2.circle(annotated, px(NOSE), head_radius, OUTLINE, 2, cv2.LINE_AA)
+
+    if w > ANNOTATED_IMAGE_MAX_WIDTH:
+        scale = ANNOTATED_IMAGE_MAX_WIDTH / w
+        annotated = cv2.resize(annotated, (ANNOTATED_IMAGE_MAX_WIDTH, int(h * scale)))
+
+    ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, ANNOTATED_IMAGE_JPEG_QUALITY])
+    if not ok:
+        raise RuntimeError("Failed to JPEG-encode the annotated frame")
+    return buf.tobytes()
 
 
 # --- Biomechanics summary (grounding context for Gemini) -------------------

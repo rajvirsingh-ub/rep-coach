@@ -7,6 +7,38 @@ in a passing conversation.
 
 ---
 
+## Dashboard functional polish — 2026-08-25
+
+The previous pass restyled the dashboard's header/buttons but left the
+actual working area (upload form, results) visually unchanged — this
+pass adds real interactive/visual substance on top of that, without
+touching the `/api/audit` contract or the LangGraph pipeline.
+
+- **Stats strip**: three cards (Sessions, Clean Rate %, Last Set) computed
+  client-side from the existing `useWorkoutHistory` data — no backend
+  change, only rendered once history is non-empty (avoids an empty/zeroed
+  strip for brand-new accounts).
+- **Drag-and-drop upload zone** replacing the plain `<input type="file">`:
+  dashed-border dropzone with drag-over highlight, shows the selected
+  filename + formatted size once chosen. The underlying `<input>` is now
+  visually hidden but still the actual source of truth for the upload —
+  drop handling just calls the same `setVideoFile` used by the click-to-
+  browse path, so `handleSubmit`'s FormData logic is untouched.
+- **Animated multi-phase loading state**: the analyze button cycles
+  through "Extracting joint landmarks... / Analyzing biomechanics... /
+  Consulting your AI coach... / Finalizing feedback..." every 1.6s while
+  `status === "loading"`, instead of a single static "Analyzing form..."
+  string — gives the AI-pipeline nature of the wait some texture.
+- **Result cards** got icon headers (chat/alert/clipboard) and a new
+  celebratory "Clean rep!" banner shown when `detectedFlaws` comes back
+  empty (previously that state only got a small text label in the
+  sidebar, nothing in the main result view).
+- **Sidebar**: session count badge next to "Recent Sessions", a small
+  dumbbell icon per entry, indigo hover-border accent, and check/alert
+  icons next to the clean/flaw-count labels for faster scanning.
+- Subtle blurred background glow behind the main content area, matching
+  the landing/auth pages' visual language.
+
 ## Landing page + auth modal, dashboard restyle — 2026-08-25
 
 The auth split-screen hero (previous entry) got scrapped in favor of a

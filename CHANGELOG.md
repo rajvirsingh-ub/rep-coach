@@ -7,6 +7,52 @@ in a passing conversation.
 
 ---
 
+## Landing page + auth modal, dashboard restyle — 2026-08-25
+
+The auth split-screen hero (previous entry) got scrapped in favor of a
+different flow: a full marketing landing page at `/` for guests, with
+sign-in/sign-up living in an overlay modal rather than dedicated
+full-page heroes, and the plain sign-in card kept centered per feedback
+that the split layout wasn't landing well.
+
+- **New shared components**:
+  - `BrandMark` — gradient-text "Rep Coach" wordmark, reused everywhere
+    the brand name appears (landing, auth pages, dashboard header, admin
+    header).
+  - `AuthPageShell` — shared centered-card background (subtle radial glow)
+    for the standalone auth-adjacent pages.
+  - `PoseSkeleton` — extracted the animated pulsing-joint squat-skeleton
+    SVG into its own component (previously inlined in the now-deleted
+    `AuthHero.tsx`) so the landing page can reuse it at a larger size.
+  - `SignInForm` / `SignUpForm` — the actual form logic (state, submit
+    handlers, next-auth calls) extracted out of the page components so
+    both the standalone `/signin` and `/signup` pages *and* the new
+    `AuthModal` render the exact same forms — no duplicated logic.
+  - `AuthModal` — tabbed (Sign In / Sign Up) overlay, backdrop-click
+    closes it, click inside the card doesn't (event propagation stopped).
+  - `LandingHero` — full-screen dark hero at `/` for unauthenticated
+    visitors: "Want your form corrected?" headline, three feature chips,
+    explicit "Get Started"/"Sign In" buttons, and a click-anywhere-on-the-
+    page handler that opens the modal (buttons stop propagation so they
+    open the specific tab rather than double-firing the generic handler).
+- `page.tsx`: unauthenticated visitors now render `<LandingHero />`
+  directly instead of a hard `redirect("/signin")` — `/signin` and
+  `/signup` still exist as standalone routes (now centered, no side
+  hero) for direct links and NextAuth's internal `pages.signIn` redirect
+  target.
+- `/verify-email`, `/forgot-password`, `/reset-password`: wrapped in
+  `AuthPageShell`, added the `BrandMark` eyebrow, and switched primary
+  buttons from the old flat zinc style to the same indigo→fuchsia
+  gradient CTA used everywhere else, for visual consistency across every
+  pre-dashboard surface.
+- `Dashboard.tsx` header and the primary "Analyze Form" submit button,
+  and `AdminPanel.tsx` header and its "Add" button: same `BrandMark` /
+  gradient-CTA treatment, so the post-login app doesn't look like a
+  visually disconnected product from the landing/auth pages anymore
+  (this was the "dashboard and after pages are the same right now"
+  complaint this whole pass addresses).
+- Deleted `AuthHero.tsx` (superseded by `LandingHero` + `PoseSkeleton`).
+
 ## Rebranded "Form Auditor" → "Rep Coach" — 2026-08-24
 
 The project outgrew its placeholder working name — "Form Auditor" was

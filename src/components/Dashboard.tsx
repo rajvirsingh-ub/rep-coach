@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useWorkoutHistory, type WorkoutHistoryEntry } from "@/hooks/useWorkoutHistory";
+import { BrandMark } from "@/components/BrandMark";
 
 interface AuditResult {
   detectedFlaws: string[];
@@ -105,8 +106,8 @@ export function Dashboard({ session }: { session: Session }) {
     <div className="flex min-h-screen flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950 sm:px-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Rep Coach
+          <h1 className="text-lg">
+            <BrandMark />
           </h1>
           <button
             onClick={() => setShowHistoryMobile((v) => !v)}
@@ -232,7 +233,7 @@ export function Dashboard({ session }: { session: Session }) {
               <button
                 type="submit"
                 disabled={!videoFile || status === "loading"}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {status === "loading" ? (
                   <>

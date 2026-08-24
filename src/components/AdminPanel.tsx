@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 
 interface AdminUser {
   id: string;
@@ -81,9 +82,9 @@ export function AdminPanel() {
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            User Admin
+            <BrandMark className="mr-1" /> Admin
           </h1>
-          <Link href="/" className="text-sm font-medium text-zinc-600 underline dark:text-zinc-400">
+          <Link href="/" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
             Back to dashboard
           </Link>
         </div>
@@ -113,7 +114,7 @@ export function AdminPanel() {
             <button
               type="submit"
               disabled={creating}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              className="rounded-lg bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {creating ? "Adding..." : "Add"}
             </button>

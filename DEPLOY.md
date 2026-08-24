@@ -101,8 +101,7 @@ network dependency.)
 ```bash
 cp .env.production.example .env.production
 nano .env.production   # fill in AUTH_URL (your real domain), AUTH_SECRET,
-                        # AUTH_GITHUB_ID/SECRET, GMAIL_USER/APP_PASSWORD,
-                        # ADMIN_EMAILS, GEMINI_API_KEY
+                        # GMAIL_USER/APP_PASSWORD, ADMIN_EMAILS, GEMINI_API_KEY
 ```
 
 ### 7. systemd services
@@ -130,11 +129,6 @@ sudo systemctl reload caddy
 Caddy requests a Let's Encrypt certificate automatically on first request —
 needs 80/443 reachable from the internet (already covered above) and DNS
 already pointing at this instance.
-
-### 9. Update the GitHub OAuth app's callback URL
-
-GitHub → Settings → Developer settings → OAuth Apps → your app →
-Authorization callback URL → `https://<your-duckdns-domain>/api/auth/callback/github`
 
 ---
 

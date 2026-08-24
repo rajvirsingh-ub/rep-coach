@@ -15,7 +15,7 @@ Agentic logic lives under `src/lib/ai/`:
 
 ## Auth & data
 
-NextAuth (Auth.js v5) handles sign-in — GitHub OAuth and email/password (Credentials provider). Email/password accounts live in `data/app.db` (SQLite via `@libsql/client`, gitignored), along with OTP codes used for both signup verification and password reset. The DB layer is async (`@libsql/client`, not `better-sqlite3`) so it can point at either a local file or a remote Turso database through the same API — currently always local file, no Turso account in use. `src/auth.ts` re-derives verification/admin status live from the database on every session read rather than trusting a cached JWT claim. Full schema and rationale in `CHANGELOG.md`'s "Database reference" section.
+NextAuth (Auth.js v5) handles sign-in — email/password only (Credentials provider; GitHub OAuth was removed, see `CHANGELOG.md`). Accounts live in `data/app.db` (SQLite via `@libsql/client`, gitignored), along with OTP codes used for both signup verification and password reset. The DB layer is async (`@libsql/client`, not `better-sqlite3`) so it can point at either a local file or a remote Turso database through the same API — currently always local file, no Turso account in use. `src/auth.ts` re-derives verification/admin status live from the database on every session read rather than trusting a cached JWT claim. Full schema and rationale in `CHANGELOG.md`'s "Database reference" section.
 
 ## Deployment
 

@@ -7,6 +7,20 @@ in a passing conversation.
 
 ---
 
+## Removed GitHub sign-in — 2026-08-24
+
+Email/password (with OTP verification) is now the only sign-in method.
+
+- `src/auth.ts`: removed the `GitHub` provider entirely; `jwt` callback no
+  longer needs the `account.provider === "github"` branch since every
+  sign-in now goes through `authorize()`'s own `isEmailVerified` value.
+- `/signin`: removed the "Sign in with GitHub" button, divider, and icon.
+- Removed `AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET` from `.env.local` and
+  `.env.production.example` (dead config), and the GitHub OAuth callback
+  step from `DEPLOY.md`.
+- Admin panel's "GitHub sign-ins aren't stored here" caveat removed —
+  no longer applicable now that GitHub isn't a sign-in path at all.
+
 ## First live deployment + fixes — 2026-08-24
 
 App successfully deployed and running at `repcoach.duckdns.org`. Real

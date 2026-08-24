@@ -88,11 +88,6 @@ export function AdminPanel() {
           </Link>
         </div>
 
-        <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-500">
-          Only accounts created via email/password sign-up are shown here. GitHub sign-ins
-          aren&apos;t stored in this app&apos;s own user table.
-        </p>
-
         <div className="mb-8 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Add User

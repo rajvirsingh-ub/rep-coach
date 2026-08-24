@@ -1,5 +1,5 @@
 [Unit]
-Description=Form Auditor - Next.js app
+Description=Rep Coach - Next.js app
 After=network.target
 
 [Service]

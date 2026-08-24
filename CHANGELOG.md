@@ -7,6 +7,43 @@ in a passing conversation.
 
 ---
 
+## Anchored the annotated frame to when the flaw actually happened — 2026-08-25
+
+Follow-up to the annotated-overlay feature above: the "clearest frame"
+selection was a real limitation (asked directly: "why not the frame
+where the mistake happened?") — Gemini reasons over the whole clip in
+one pass and its structured output had no timing info at all, so there
+was nothing to anchor to. Fixed by asking for it directly, since Gemini
+does have genuine temporal understanding of the video (unlike the local
+per-frame biomechanics data, which only has usable per-frame metrics for
+2 of the many possible flaw types — knees and lean — and nothing for the
+rest, e.g. footwear, elbow flare).
+
+- `FlawHighlight` gained `approximate_timestamp_seconds: float | None` —
+  Gemini's best-guess moment (seconds from clip start) each flaw is most
+  visible, explicitly allowed to be null rather than guessing wildly.
+- New `_extract_frame_at_timestamp`: seeks the video directly to that
+  timestamp (`cv2.CAP_PROP_POS_MSEC`) and runs a fresh pose-estimation
+  pass there (that exact instant generally isn't one of the ~30 already-
+  sampled frames). Falls back to the existing clearest-frame selection if
+  Gemini gave no timestamp, the timestamp is out of range, or pose
+  detection fails at that exact instant (e.g. a blurry mid-motion frame)
+  — the image is never silently missing because of this.
+- `_sample_pose_frames` now also returns `duration_seconds` (computed
+  from frame count ÷ fps, already had the file open — no extra I/O) used
+  to sanity-check Gemini's timestamp before seeking to it.
+- Deliberately scoped to keep the response contract identical (still one
+  `annotated_image` string) rather than expanding to per-flaw images —
+  the fix is entirely internal to `vision_engine.py`; no frontend files
+  changed.
+- Verified live, not just by reading the code: added temporary logging,
+  confirmed in the server log that Gemini returned a real timestamp
+  (`23.0s`) and the seek succeeded, then visually compared the resulting
+  frame to the earlier clearest-frame test on the same video — the new
+  one is anchored at the actual bottom of the squat (deep knee bend,
+  torso pitched forward) instead of an arbitrary more-upright moment,
+  a clearly more illustrative result for "excessive torso lean."
+
 ## Visual form breakdown: annotated skeleton overlay — 2026-08-25
 
 Users find a picture more useful than a wall of text, so results now

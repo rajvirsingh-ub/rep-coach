@@ -21,11 +21,13 @@ pass is what grounds Gemini's read in real measurements instead of letting
 it guess purely from pixels, and lets us reject obviously-empty/unusable
 videos before spending an API call on them.
 
-The annotated frame is a best-effort visual aid, not a claim of precise
-timing: Gemini reasons over the whole clip holistically and doesn't tell
-us *when* a flaw occurred, so we draw the overlay on the clearest frame we
-sampled (highest average landmark visibility), not necessarily the exact
-moment the flaw happened.
+The annotated frame is a best-effort visual aid, not a guaranteed exact
+moment: Gemini is asked for a rough per-flaw timestamp (it does have real
+temporal understanding of the video, unlike the frame-by-frame local
+pose data), and we seek the video to that timestamp and draw the overlay
+there. If Gemini doesn't give a usable timestamp for any flaw, or the
+seek/pose-detection at that instant fails, we fall back to the clearest
+frame we sampled (highest average landmark visibility) instead.
 """
 
 import asyncio
@@ -159,6 +161,7 @@ _gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else Non
 class FlawHighlight(BaseModel):
     flaw: str
     body_regions: list[BodyRegion]
+    approximate_timestamp_seconds: float | None = None
 
 
 class GeminiFormAnalysis(BaseModel):
@@ -206,12 +209,17 @@ Watch the attached video together with the pose-tracking summary above, then res
    observed — not generic advice, and consistent with any constraints the client noted (don't
    suggest increasing range of motion or load that conflicts with a stated limitation).
 
-7. "flaw_highlights": for each entry in detected_flaws, list the 1-3 body regions most directly
-   involved in that flaw, chosen only from this fixed set: left_shoulder, right_shoulder,
-   left_elbow, right_elbow, left_wrist, right_wrist, left_hip, right_hip, left_knee, right_knee,
-   left_ankle, right_ankle, spine, head. Use "spine" for torso/back/lean issues. We use this to
-   draw red markers on a still frame, so only include regions you're confident are the actual
-   source of that specific flaw. Empty list if detected_flaws is empty.
+7. "flaw_highlights": for each entry in detected_flaws, provide:
+   - "body_regions": the 1-3 body regions most directly involved in that flaw, chosen only from
+     this fixed set: left_shoulder, right_shoulder, left_elbow, right_elbow, left_wrist,
+     right_wrist, left_hip, right_hip, left_knee, right_knee, left_ankle, right_ankle, spine,
+     head. Use "spine" for torso/back/lean issues. We use this to draw red markers on a still
+     frame, so only include regions you're confident are the actual source of that flaw.
+   - "approximate_timestamp_seconds": your best estimate, in seconds from the very start of the
+     clip, of the single moment this flaw is most clearly visible. Use null if the flaw persists
+     evenly throughout the rep or you're not confident about a specific moment — don't guess
+     wildly, we use this to pick which video frame to show.
+   Empty list if detected_flaws is empty.
 
 If activity_mismatch is set, detected_flaws, form_corrections, and flaw_highlights should be
 empty lists and form_analysis_feedback can restate the mismatch briefly.
@@ -292,8 +300,8 @@ async def analyze(
         tmp_path = tmp.name
 
     try:
-        total_sampled, pose_frames, best_frame_bgr, best_frame_image_lm = await asyncio.to_thread(
-            _sample_pose_frames, tmp_path
+        total_sampled, pose_frames, best_frame_bgr, best_frame_image_lm, duration_seconds = (
+            await asyncio.to_thread(_sample_pose_frames, tmp_path)
         )
         _validate_pose_presence(total_sampled, pose_frames)
 
@@ -303,6 +311,34 @@ async def analyze(
         analysis = await asyncio.to_thread(
             _analyze_with_gemini, tmp_path, exercise_name, user_context, summary
         )
+
+        if not analysis.activity_mismatch:
+            # Prefer a frame anchored to when a flaw actually happened over the
+            # generic "clearest frame" fallback, if Gemini gave us a usable
+            # timestamp for any flaw.
+            target_timestamp = next(
+                (
+                    fh.approximate_timestamp_seconds
+                    for fh in analysis.flaw_highlights
+                    if fh.approximate_timestamp_seconds is not None
+                    and 0 <= fh.approximate_timestamp_seconds <= duration_seconds
+                ),
+                None,
+            )
+            if target_timestamp is not None:
+                extracted = await asyncio.to_thread(
+                    _extract_frame_at_timestamp, tmp_path, target_timestamp
+                )
+                if extracted is not None:
+                    best_frame_bgr, best_frame_image_lm = extracted
+                    print(f"[analyze] Using flaw-anchored frame at {target_timestamp:.1f}s")
+                else:
+                    print(
+                        f"[analyze] Gemini gave timestamp {target_timestamp:.1f}s but seek/pose "
+                        "detection failed there — using clearest-frame fallback"
+                    )
+            else:
+                print("[analyze] No usable flaw timestamp from Gemini — using clearest-frame fallback")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
@@ -339,17 +375,23 @@ async def analyze(
 def _sample_pose_frames(video_path: str):
     """Runs MediaPipe pose estimation once per sampled frame.
 
-    Returns (total_sampled, detected, best_frame_bgr, best_frame_image_lm):
+    Returns (total_sampled, detected, best_frame_bgr, best_frame_image_lm,
+    duration_seconds):
     - detected is a list of (primary_image_landmarks, primary_world_landmarks,
       other_people) tuples, one per sampled frame that had at least one
       person in it.
     - best_frame_bgr / best_frame_image_lm are the raw frame (as a BGR numpy
       array) and its landmarks for whichever sampled frame had the highest
-      average landmark visibility — used later to draw the annotated overlay
-      on the clearest available frame. None if no frame had a detection.
+      average landmark visibility — used as the fallback frame for the
+      annotated overlay when no flaw has a usable timestamp. None if no
+      frame had a detection.
+    - duration_seconds is the video's total length, used to sanity-check
+      any timestamp Gemini returns before seeking to it.
     """
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+    duration_seconds = (total_frames / fps) if fps > 0 else 0.0
     step = max(1, total_frames // MAX_SAMPLED_FRAMES) if total_frames else 1
 
     total_sampled = 0
@@ -380,7 +422,29 @@ def _sample_pose_frames(video_path: str):
         frame_index += 1
 
     cap.release()
-    return total_sampled, detected, best_frame_bgr, best_frame_image_lm
+    return total_sampled, detected, best_frame_bgr, best_frame_image_lm, duration_seconds
+
+
+def _extract_frame_at_timestamp(video_path: str, timestamp_seconds: float):
+    """Seeks to a specific timestamp and runs pose estimation on that exact
+    frame, so the annotated image can be anchored to when Gemini says a flaw
+    actually happened rather than just the clearest frame overall. Returns
+    None if the seek fails or no person is detected there — caller falls
+    back to the clearest-frame default in that case.
+    """
+    cap = cv2.VideoCapture(video_path)
+    cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, timestamp_seconds) * 1000)
+    ok, frame = cap.read()
+    cap.release()
+    if not ok:
+        return None
+
+    pose = _run_pose_estimation(frame)
+    if pose is None:
+        return None
+
+    image_lm, _, _ = pose
+    return frame, image_lm
 
 
 def _run_pose_estimation(frame_bgr):

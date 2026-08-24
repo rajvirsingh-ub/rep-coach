@@ -1,5 +1,5 @@
 [Unit]
-Description=Rep Coach - Vision engine (FastAPI/MediaPipe/Gemini)
+Description=Form Auditor - Vision engine (FastAPI/MediaPipe/Gemini)
 After=network.target
 
 [Service]

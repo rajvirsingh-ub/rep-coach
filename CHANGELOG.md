@@ -7,31 +7,6 @@ in a passing conversation.
 
 ---
 
-## Rebranded "Form Auditor" → "Rep Coach" — 2026-08-24
-
-The project outgrew its placeholder working name — "Form Auditor" was
-still showing up in every user-facing surface even though the repo,
-domain, and resume summary had already settled on "Rep Coach."
-
-- User-facing text: sign-in page heading, dashboard header, `layout.tsx`
-  metadata (`title`/`description` — previously still the unedited
-  create-next-app defaults), all four email templates in `src/lib/email.ts`
-  (sender name, subject lines, body copy for OTP/reset/changed/verified
-  emails), `vision_engine.py`'s FastAPI `title`.
-- Project identity: `package.json` `name` (`ai-project` → `rep-coach`,
-  regenerated `package-lock.json` to match — `npm ci` validates the lockfile's
-  embedded name against `package.json` and would otherwise fail), `CLAUDE.md`
-  header.
-- Renamed the systemd unit files themselves:
-  `deploy/form-auditor-{web,vision}.service` →
-  `deploy/rep-coach-{web,vision}.service` (via `git mv`), updated their
-  `Description=` lines and every reference in `DEPLOY.md`. Since the old
-  filenames were already registered as live systemd units on the deployed
-  EC2 instance, added a one-time migration section to `DEPLOY.md`
-  (disable/remove old units, install new ones) rather than just swapping
-  the files — a plain `git pull` + `cp` would have left the old units
-  orphaned and still running alongside the new ones.
-
 ## Removed GitHub sign-in — 2026-08-24
 
 Email/password (with OTP verification) is now the only sign-in method.

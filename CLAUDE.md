@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Rep Coach — Multi-Agent Biomechanical Form Auditor
+# Multi-Agent Biomechanical Form Auditor
 
 Agentic logic lives under `src/lib/ai/`:
 - `graph.ts` — LangGraph workflow: `analyzeForm` (calls `vision.ts`) → `fetchFormCorrections` (uses corrections Gemini already generated; falls back to the local lookup in `vectorStore.ts` only if Gemini returned flaws with no corrections).

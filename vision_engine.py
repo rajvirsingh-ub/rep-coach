@@ -43,7 +43,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="Rep Coach Vision Engine")
+app = FastAPI(title="Form Auditor Vision Engine")
 
 app.add_middleware(
     CORSMiddleware,

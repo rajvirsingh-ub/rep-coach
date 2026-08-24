@@ -107,11 +107,11 @@ nano .env.production   # fill in AUTH_URL (your real domain), AUTH_SECRET,
 ### 7. systemd services
 
 ```bash
-sudo cp deploy/rep-coach-web.service /etc/systemd/system/
-sudo cp deploy/rep-coach-vision.service /etc/systemd/system/
+sudo cp deploy/form-auditor-web.service /etc/systemd/system/
+sudo cp deploy/form-auditor-vision.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now rep-coach-web rep-coach-vision
-sudo systemctl status rep-coach-web rep-coach-vision
+sudo systemctl enable --now form-auditor-web form-auditor-vision
+sudo systemctl status form-auditor-web form-auditor-vision
 ```
 
 Both units use `EnvironmentFile=/home/ubuntu/rep-coach/.env.production`
@@ -141,35 +141,20 @@ git pull
 npm ci
 npm run build
 venv/bin/pip install -r requirements.txt   # only if requirements.txt changed
-sudo systemctl restart rep-coach-web rep-coach-vision
+sudo systemctl restart form-auditor-web form-auditor-vision
 ```
 
 `data/app.db` is untouched by any of this — it's just a file in the
 working directory, not part of the deploy step at all.
 
-### One-time: renaming an already-running instance's units
-
-The systemd unit files were renamed from `form-auditor-*` to `rep-coach-*`
-(see `CHANGELOG.md`). An instance deployed before that rename needs this
-one-time cleanup after `git pull`:
-
-```bash
-sudo systemctl disable --now form-auditor-web form-auditor-vision
-sudo rm /etc/systemd/system/form-auditor-web.service /etc/systemd/system/form-auditor-vision.service
-sudo cp deploy/rep-coach-web.service deploy/rep-coach-vision.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now rep-coach-web rep-coach-vision
-sudo systemctl status rep-coach-web rep-coach-vision
-```
-
 ## Useful commands
 
 ```bash
-sudo systemctl status rep-coach-web
-sudo systemctl status rep-coach-vision
-sudo journalctl -u rep-coach-web -f      # tail logs
-sudo journalctl -u rep-coach-vision -f
-sudo systemctl restart rep-coach-web
+sudo systemctl status form-auditor-web
+sudo systemctl status form-auditor-vision
+sudo journalctl -u form-auditor-web -f      # tail logs
+sudo journalctl -u form-auditor-vision -f
+sudo systemctl restart form-auditor-web
 ```
 
 ---

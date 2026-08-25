@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { auth } from "@/auth";
 import { graph } from "@/lib/ai/graph";
+import { createHistoryEntry } from "@/lib/history";
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let tempVideoPath: string | null = null;
 
   try {
@@ -46,6 +53,21 @@ export async function POST(request: Request) {
       formCorrections: [],
       annotatedImage: null,
     });
+
+    try {
+      await createHistoryEntry(session.user.id, {
+        exerciseName,
+        userContext,
+        feedback: result.formAnalysisFeedback,
+        detectedFlaws: result.detectedFlaws,
+        formCorrections: result.formCorrections,
+        annotatedImage: result.annotatedImage,
+      });
+    } catch (historyError) {
+      // The analysis itself succeeded — a failure to persist history
+      // shouldn't block the response the user is waiting on.
+      console.error("[API Audit] Failed to save history entry:", historyError);
+    }
 
     return NextResponse.json({
       success: true,

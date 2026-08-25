@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db, ensureMigrated } from "@/lib/db";
+import { deleteHistoryForUser } from "@/lib/history";
 import { hashPassword, verifyPassword } from "@/lib/password";
 
 export interface AppUser {
@@ -81,6 +82,7 @@ export async function getAllUsers(): Promise<AppUserSummary[]> {
 
 export async function deleteUser(id: string): Promise<void> {
   await ensureMigrated();
+  await deleteHistoryForUser(id);
   await db.execute({ sql: "DELETE FROM users WHERE id = ?", args: [id] });
 }
 

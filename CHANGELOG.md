@@ -7,6 +7,54 @@ in a passing conversation.
 
 ---
 
+## Moved workout history from localStorage to a server-side table — 2026-08-26
+
+Workout history (including the annotated images) previously lived only
+in the browser's `localStorage`, so a user's sessions were invisible on
+any other browser/device. Moved to a real `workout_history` table in the
+same SQLite DB that already holds `users`/`otp_codes`.
+
+- `src/lib/db.ts`: added `workout_history` (id, user_id, exercise_name,
+  user_context, feedback, detected_flaws/form_corrections as JSON text,
+  annotated_image, created_at) plus an index on `user_id`.
+- New `src/lib/history.ts`: `createHistoryEntry`, `getHistoryForUser`,
+  `deleteHistoryForUser`. Stores `annotated_image` as the exact same
+  `data:image/jpeg;base64,...` string the vision engine already produces
+  — simplest option (no encode/decode step, frontend `<img src>` usage is
+  unchanged), at the cost of ~33% more storage than a raw BLOB would use.
+  Prunes to the 50 most recent entries per user on insert, same cap the
+  old localStorage hook used, since each entry can carry a ~30-50KB image.
+- `src/lib/users.ts`'s `deleteUser` now cascades to
+  `deleteHistoryForUser` so removing an account from the admin panel
+  doesn't leave orphaned history rows behind.
+- **`/api/audit` now requires authentication** (`401` if no session) —
+  a real gap this change surfaced: the route had no auth check at all
+  before, relying entirely on the frontend not exposing it to logged-out
+  users. Needed anyway to know which user's history row to write.
+  Persists the entry server-side automatically right after a successful
+  analysis (best-effort — a failed save doesn't block the response the
+  user is waiting on).
+- New `GET /api/history` — returns the current session's history, `401`
+  if unauthenticated.
+- `useWorkoutHistory` rewritten: no longer takes a `userId` param or
+  touches `localStorage` at all; fetches from `/api/history` on mount and
+  exposes `refresh()` instead of `addEntry()` (entries are now created
+  server-side by `/api/audit` itself, so the hook's job is just pulling
+  the canonical list, not constructing entries).
+- `Dashboard.tsx` updated accordingly: calls `refresh()` after a
+  successful analysis instead of `addEntry(...)`; `entry.timestamp` field
+  renamed to `entry.createdAt` to match the new server shape.
+- **Known, unavoidable consequence, flagged rather than silently
+  swallowed**: history that was sitting in a user's browser localStorage
+  before this change has no migration path into the new table — there's
+  no way for the server to read another origin's localStorage. Existing
+  local entries simply stop being shown going forward; only new analyses
+  are saved server-side from this point on.
+- Verified live end-to-end: confirmed unauthenticated `POST /api/audit`
+  now correctly 401s, ran a real video through the full flow, and
+  inspected the raw `workout_history` row directly (correct `user_id`,
+  full image payload) rather than trusting the API response alone.
+
 ## Custom favicon — 2026-08-26
 
 `src/app/favicon.ico` was still the unedited default Next.js scaffold

@@ -24,8 +24,7 @@ const LOADING_PHRASES = [
 ];
 
 export function Dashboard({ session }: { session: Session }) {
-  const userId = session.user.id ?? session.user.email ?? undefined;
-  const { history, addEntry } = useWorkoutHistory(userId);
+  const { history, refresh } = useWorkoutHistory();
 
   const [exerciseName, setExerciseName] = useState("Back Squat");
   const [userContext, setUserContext] = useState("");
@@ -88,14 +87,9 @@ export function Dashboard({ session }: { session: Session }) {
       const auditResult: AuditResult = body.data;
       setResult(auditResult);
       setStatus("success");
-      addEntry({
-        exerciseName,
-        userContext,
-        feedback: auditResult.feedback,
-        detectedFlaws: auditResult.detectedFlaws,
-        formCorrections: auditResult.formCorrections,
-        annotatedImage: auditResult.annotatedImage,
-      });
+      // /api/audit already persisted this entry server-side — just pull the
+      // canonical updated list so it shows up in the sidebar.
+      refresh();
     } catch (err: any) {
       setErrorMessage(err.message ?? "Unknown error");
       setStatus("error");
@@ -119,7 +113,7 @@ export function Dashboard({ session }: { session: Session }) {
       detectedFlaws: entry.detectedFlaws,
       feedback: entry.feedback,
       formCorrections: entry.formCorrections,
-      annotatedImage: entry.annotatedImage ?? null,
+      annotatedImage: entry.annotatedImage,
     });
     setStatus("success");
     setShowHistoryMobile(false);
@@ -128,7 +122,7 @@ export function Dashboard({ session }: { session: Session }) {
   const totalSessions = history.length;
   const cleanCount = history.filter((h) => h.detectedFlaws.length === 0).length;
   const cleanRate = totalSessions > 0 ? Math.round((cleanCount / totalSessions) * 100) : 0;
-  const lastSession = totalSessions > 0 ? new Date(history[0].timestamp) : null;
+  const lastSession = totalSessions > 0 ? new Date(history[0].createdAt) : null;
 
   return (
     <div className="flex min-h-screen flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
@@ -197,7 +191,7 @@ export function Dashboard({ session }: { session: Session }) {
                         {entry.exerciseName}
                       </p>
                       <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
-                        {new Date(entry.timestamp).toLocaleString()}
+                        {new Date(entry.createdAt).toLocaleString()}
                       </p>
                       <p className="mt-1 flex items-center gap-1 text-xs">
                         {entry.detectedFlaws.length === 0 ? (

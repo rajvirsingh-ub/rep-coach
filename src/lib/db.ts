@@ -48,6 +48,23 @@ async function migrate(): Promise<void> {
       attempts INTEGER NOT NULL DEFAULT 0
     )
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS workout_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      exercise_name TEXT NOT NULL,
+      user_context TEXT NOT NULL,
+      feedback TEXT NOT NULL,
+      detected_flaws TEXT NOT NULL,
+      form_corrections TEXT NOT NULL,
+      annotated_image TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_workout_history_user_id ON workout_history(user_id)"
+  );
 }
 
 let migrated: Promise<void> | null = null;

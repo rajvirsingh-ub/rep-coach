@@ -4,66 +4,41 @@ import { useCallback, useEffect, useState } from "react";
 
 export interface WorkoutHistoryEntry {
   id: string;
-  timestamp: number;
+  createdAt: number;
   exerciseName: string;
   userContext: string;
   feedback: string;
   detectedFlaws: string[];
   formCorrections: string[];
-  // Optional: entries saved before this field existed won't have it, and
-  // it's a base64 JPEG data URI (tens of KB) so it meaningfully adds to
-  // localStorage usage — kept small/downscaled server-side to stay within
-  // typical per-origin quotas even across MAX_ENTRIES history items.
-  annotatedImage?: string | null;
+  annotatedImage: string | null;
 }
 
-const MAX_ENTRIES = 50;
-
-function storageKey(userId: string): string {
-  return `history_${userId}`;
-}
-
-function readFromStorage(userId: string): WorkoutHistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    return raw ? (JSON.parse(raw) as WorkoutHistoryEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-// Saves successful analysis results to localStorage, namespaced per signed-in
-// user so history from different accounts on the same machine never mixes.
-export function useWorkoutHistory(userId: string | undefined) {
+// Reads workout history from the server (workout_history table, scoped to
+// the logged-in user via their session) instead of localStorage, so
+// sessions are visible from any browser/device, not just the one that
+// created them. New entries are created server-side by /api/audit itself
+// — refresh() just re-fetches the canonical list after an analysis
+// completes.
+export function useWorkoutHistory() {
   const [history, setHistory] = useState<WorkoutHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/history");
+      if (!res.ok) return;
+      const body = await res.json();
+      setHistory(body.history ?? []);
+    } catch {
+      // Leave existing history state as-is on a transient fetch failure.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    setHistory(userId ? readFromStorage(userId) : []);
-  }, [userId]);
+    refresh();
+  }, [refresh]);
 
-  const addEntry = useCallback(
-    (entry: Omit<WorkoutHistoryEntry, "id" | "timestamp">) => {
-      if (!userId) return;
-
-      const newEntry: WorkoutHistoryEntry = {
-        ...entry,
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-      };
-
-      setHistory((prev) => {
-        const updated = [newEntry, ...prev].slice(0, MAX_ENTRIES);
-        try {
-          localStorage.setItem(storageKey(userId), JSON.stringify(updated));
-        } catch {
-          // localStorage may be full or unavailable (e.g. private browsing) —
-          // keep the in-memory state regardless so the session isn't lost.
-        }
-        return updated;
-      });
-    },
-    [userId]
-  );
-
-  return { history, addEntry };
+  return { history, loading, refresh };
 }

@@ -7,6 +7,19 @@ in a passing conversation.
 
 ---
 
+## Custom favicon — 2026-08-26
+
+`src/app/favicon.ico` was still the unedited default Next.js scaffold
+icon (leftover from the initial `create-next-app` commit) — every open
+tab showed the generic Next.js logo instead of anything identifying the
+app. Replaced with `src/app/icon.svg`: a dumbbell mark (same motif as the
+sidebar history icons) on the app's indigo→fuchsia gradient, picked up
+automatically by Next.js's file-based icon convention (no metadata
+config needed). Deleted the old `favicon.ico` so it can't take priority
+over the new one in browsers that check it directly — verified the
+rendered page head now emits `<link rel="icon" href="/icon.svg" ...>`
+and `/favicon.ico` correctly 404s instead of serving the old icon.
+
 ## Anchored the annotated frame to when the flaw actually happened — 2026-08-25
 
 Follow-up to the annotated-overlay feature above: the "clearest frame"

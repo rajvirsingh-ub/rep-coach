@@ -155,6 +155,23 @@ ANNOTATED_IMAGE_JPEG_QUALITY = 60
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 
+# If the primary model is temporarily overloaded, try these next (same
+# Google account/API key — no separate signup). A model-specific capacity
+# issue rarely affects every model in the family at once. Overridable via
+# env in case a listed model gets deprecated later (see CHANGELOG.md for
+# how that bit us with a hardcoded single model before) — note that
+# `client.models.list()` isn't reliable evidence a model is actually
+# callable: gemini-2.5-flash and gemini-2.5-flash-lite both show up there
+# but return 404 "no longer available to new users" when called with this
+# key, confirmed by hitting them directly, not just checking the listing.
+GEMINI_FALLBACK_MODELS = [
+    m.strip()
+    for m in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-flash-lite-latest,gemini-3.6-flash").split(",")
+    if m.strip()
+]
+GEMINI_MAX_ATTEMPTS_PER_MODEL = 2
+GEMINI_RETRY_BACKOFF_SECONDS = 2
+
 _gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
@@ -228,6 +245,53 @@ Respond only with the structured JSON.
 """
 
 
+def _generate_content_with_fallback(video_file, prompt: str):
+    """Tries GEMINI_MODEL first, then each GEMINI_FALLBACK_MODELS entry in
+    order, retrying a model up to GEMINI_MAX_ATTEMPTS_PER_MODEL times on a
+    transient overload (ServerError) before moving on. A rejected request
+    (ClientError) skips straight to the next model rather than retrying,
+    since retrying the same request against the same model won't change
+    the outcome. Raises the same HTTPException shape as before once every
+    model/attempt is exhausted.
+    """
+    candidate_models = [GEMINI_MODEL] + [m for m in GEMINI_FALLBACK_MODELS if m != GEMINI_MODEL]
+    last_error: Exception | None = None
+
+    for model_name in candidate_models:
+        for attempt in range(1, GEMINI_MAX_ATTEMPTS_PER_MODEL + 1):
+            try:
+                response = _gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=[video_file, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=GeminiFormAnalysis,
+                    ),
+                )
+                if model_name != GEMINI_MODEL:
+                    print(f"[analyze] Used fallback model '{model_name}' (primary '{GEMINI_MODEL}' unavailable)")
+                return response
+            except genai_errors.ServerError as e:
+                last_error = e
+                print(f"[analyze] '{model_name}' overloaded (attempt {attempt}/{GEMINI_MAX_ATTEMPTS_PER_MODEL})")
+                if attempt < GEMINI_MAX_ATTEMPTS_PER_MODEL:
+                    time.sleep(GEMINI_RETRY_BACKOFF_SECONDS)
+            except genai_errors.ClientError as e:
+                last_error = e
+                print(f"[analyze] '{model_name}' rejected the request, trying next model: {e}")
+                break
+
+    if isinstance(last_error, genai_errors.ServerError):
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini is temporarily overloaded across all available models. Please try again in a moment.",
+        )
+    raise HTTPException(
+        status_code=502,
+        detail=f"Gemini rejected the request: {getattr(last_error, 'message', str(last_error))}",
+    )
+
+
 def _analyze_with_gemini(
     video_path: str, exercise_name: str, user_context: str, biomechanics_summary: str
 ) -> GeminiFormAnalysis:
@@ -252,26 +316,7 @@ def _analyze_with_gemini(
             biomechanics_summary=biomechanics_summary,
         )
 
-        try:
-            response = _gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=[video_file, prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=GeminiFormAnalysis,
-                ),
-            )
-        except genai_errors.ServerError:
-            raise HTTPException(
-                status_code=503,
-                detail="Gemini is temporarily overloaded (high demand on their end). Please try again in a moment.",
-            )
-        except genai_errors.ClientError as e:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Gemini rejected the request: {e.message if hasattr(e, 'message') else str(e)}",
-            )
-
+        response = _generate_content_with_fallback(video_file, prompt)
         return GeminiFormAnalysis.model_validate_json(response.text)
     finally:
         try:

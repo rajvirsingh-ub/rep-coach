@@ -7,6 +7,39 @@ in a passing conversation.
 
 ---
 
+## Gemini retry + sibling-model fallback — 2026-08-26
+
+Gemini overload/unavailability was previously an immediate 503 to the
+user. Asked about adding a different free provider as a fallback — true
+video-native multimodal APIs with a real free tier are essentially just
+Gemini right now (OpenAI/Claude don't accept raw video uploads the way
+Gemini's Files API does), so went with the higher-leverage, lower-risk
+fix first: retry and fall back to sibling models within the same Google
+account before giving up.
+
+- New `_generate_content_with_fallback`: tries `GEMINI_MODEL` first, then
+  each `GEMINI_FALLBACK_MODELS` entry in order. Retries a `ServerError`
+  (overload) up to twice per model with a short backoff; a `ClientError`
+  (rejected request) skips straight to the next model instead of
+  retrying, since retrying an identical rejected request won't change
+  the outcome. Only raises to the caller once every model/attempt is
+  exhausted.
+- `GEMINI_FALLBACK_MODELS` is env-overridable (comma-separated), default
+  `gemini-flash-lite-latest,gemini-3.6-flash`.
+- Verified live by deliberately forcing failure, not just reading the
+  code: set `GEMINI_MODEL` to a nonexistent model name and confirmed via
+  server logs the cascade worked exactly as designed — bogus model → 404
+  → next candidate → **also 404** → next candidate → succeeded. That
+  middle failure was a genuine, unplanned finding: `gemini-2.5-flash`
+  (the fallback originally chosen) is *listed* as available via
+  `client.models.list()` but actually returns "no longer available to
+  new users" when called with this key — the exact same deprecation trap
+  that broke the original hardcoded single-model setup. Confirmed
+  `gemini-2.5-flash-lite` has the identical problem, so both were
+  dropped from the fallback list in favor of directly-tested working
+  models (`gemini-flash-lite-latest`, `gemini-3.6-flash`) — verified by
+  actually calling them, not by trusting the model listing.
+
 ## Moved workout history from localStorage to a server-side table — 2026-08-26
 
 Workout history (including the annotated images) previously lived only

@@ -197,6 +197,15 @@ Client-provided context or constraints: {user_context}
 
 {biomechanics_summary}
 
+Don't flag a flaw just because a pose-tracking number looks slightly off if the video itself
+looks fine — camera angle, stance width, and normal human variation (stiffness/mobility limits,
+minor asymmetry, lifting style) can all make the numbers look more extreme than the movement
+actually is. Default to clean on that kind of ambiguous numeric signal alone. This does NOT mean
+going easier on things you can clearly and confidently see in the video itself — including
+safety-relevant observations like unsafe footwear, visible loss of balance, or clearly poor
+mechanics — flag those normally even if the numeric summary doesn't capture them. The goal is
+fewer false alarms from noisy numbers, not fewer honest observations from what you actually see.
+
 Watch the attached video together with the pose-tracking summary above, then respond with:
 
 1. "activity_mismatch": if the video clearly does NOT show the stated exercise (a genuinely
@@ -209,9 +218,11 @@ Watch the attached video together with the pose-tracking summary above, then res
    can actually see and that the pose-tracking numbers support. Don't invent flaws the video
    doesn't show. Empty list if the rep looked clean.
 
-3. If the summary notes a possible second person or added load, don't apply strict unweighted
-   bodyweight thresholds — treat it as a loaded/partner variation and focus on general
-   stability cues instead of standard flaw callouts.
+3. If the summary notes a possible second person or added load, don't judge depth or range of
+   motion by strict unweighted-bodyweight norms — some reduction there is expected and safe
+   under real added load. This is specifically about depth/ROM expectations — it does NOT mean
+   going easier on other genuinely observable issues (unsafe footwear, balance problems,
+   unstable positioning, etc.); still flag those normally.
 
 4. Respect the client-provided context above. If a deviation from standard technique is
    directly explained by a stated constraint (e.g. reduced squat depth because of a noted knee
@@ -740,14 +751,20 @@ def _build_biomechanics_summary(pose_frames: list, carrying_extra_load: bool) ->
 
     lines = [
         "On-device pose-tracking summary (MediaPipe, 3D joint angles in degrees, "
-        f"{len(pose_frames)} sample points across the clip):",
+        f"{len(pose_frames)} sample points across the clip). These numbers are rough,  "
+        "camera-angle-dependent estimates, not ground truth — treat them as a secondary signal "
+        "and trust what you actually see in the video if they seem to disagree:",
         f"- Knee flexion angle: min {min(knee_angles):.0f}°, max {max(knee_angles):.0f}°, "
         f"avg {float(np.mean(knee_angles)):.0f}°",
         f"- Elbow flexion angle: min {min(elbow_angles):.0f}°, max {max(elbow_angles):.0f}°, "
         f"avg {float(np.mean(elbow_angles)):.0f}°",
-        f"- Torso lean from the athlete's own upright reference: max {max(lean_angles):.0f}°",
+        f"- Torso lean from the athlete's own upright reference: max {max(lean_angles):.0f}° "
+        "(some forward lean is a normal, often necessary part of squatting and increases with "
+        "depth and bar position — this number alone does not indicate a flaw)",
         f"- Knee-to-ankle lateral width ratio: avg {float(np.mean(knee_ratios)):.2f} "
-        "(near 1.0 = knees tracking over ankles; well below 1.0 = knees drifting inward)",
+        "(a rough proxy only — this varies a lot with stance width and how much the feet are "
+        "turned out, so values well below 1.0 are common in a normal stance and don't by "
+        "themselves mean the knees are caving in; judge that from the video)",
     ]
     if carrying_extra_load:
         lines.append(

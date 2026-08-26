@@ -7,6 +7,44 @@ in a passing conversation.
 
 ---
 
+## Fixed false-positive flaws on genuinely clean reps — 2026-08-26
+
+Reported issue: real, well-executed squat videos were still coming back
+with flagged flaws and red overlay markers. Root cause was a genuine bug
+in the biomechanics summary text handed to Gemini, not model flakiness.
+
+- `_build_biomechanics_summary`'s knee-to-ankle ratio line literally
+  asserted `"well below 1.0 = knees drifting inward"` as fact. That
+  ratio is heavily affected by stance width and how much the feet are
+  turned out — most normal, correct squat stances land well below 1.0
+  even with perfect knee tracking, so this was actively priming Gemini
+  toward "knees caving inward" before it even watched the video. Reworded
+  to a neutral description with an explicit camera-angle/stance-width
+  caveat instead of a baked-in good/bad threshold. Similarly reworded the
+  torso-lean line to note that forward lean is a normal, often necessary
+  part of squatting rather than presenting a bare number with no context.
+- Added an explicit prompt instruction: don't flag a flaw from an
+  ambiguous *numeric* signal alone if the video itself looks fine —
+  camera angle and normal human variation can make the numbers look more
+  extreme than the movement actually is.
+- **First attempt at this over-corrected** — caught by a regression test
+  before shipping, not after: the same fix caused a video with a real,
+  clearly-visible flaw (flip-flops during a loaded partner-carry squat)
+  to come back completely clean, because the new leniency wording
+  combined with the existing "loaded-variation, skip standard flaw
+  callouts" instruction ended up suppressing genuinely observable issues,
+  not just ambiguous numeric ones. Narrowed both instructions to
+  explicitly separate "don't over-trust noisy numbers" from "still flag
+  anything clearly visible in the video, including safety-relevant
+  observations" — re-tested the same video afterward and confirmed the
+  real flaw (footwear) came back while a separate clean tricep-pushdown
+  clip stayed clean.
+- Can't fully validate the original report without the user's own test
+  videos that were producing false positives — the fix targets the
+  concretely identified bug and is verified not to suppress genuine
+  issues, but the user should re-test the specific clips that triggered
+  the complaint to confirm it's resolved for their cases.
+
 ## Gemini retry + sibling-model fallback — 2026-08-26
 
 Gemini overload/unavailability was previously an immediate 503 to the

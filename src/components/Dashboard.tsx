@@ -11,6 +11,7 @@ interface AuditResult {
   detectedFlaws: string[];
   feedback: string;
   formCorrections: string[];
+  optimizationTips: string[];
   annotatedImage: string | null;
 }
 
@@ -113,6 +114,7 @@ export function Dashboard({ session }: { session: Session }) {
       detectedFlaws: entry.detectedFlaws,
       feedback: entry.feedback,
       formCorrections: entry.formCorrections,
+      optimizationTips: entry.optimizationTips,
       annotatedImage: entry.annotatedImage,
     });
     setStatus("success");
@@ -442,6 +444,26 @@ export function Dashboard({ session }: { session: Session }) {
                   </div>
                 )}
 
+                {result.optimizationTips.length > 0 && (
+                  <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-5 shadow-sm dark:border-fuchsia-900/50 dark:bg-fuchsia-950/20">
+                    <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-fuchsia-700 dark:text-fuchsia-400">
+                      <LightbulbIcon className="size-4" />
+                      Optimization Tips
+                    </h2>
+                    <ul className="space-y-2">
+                      {result.optimizationTips.map((item) => (
+                        <li
+                          key={item}
+                          className="flex items-start gap-2 text-sm text-zinc-800 dark:text-zinc-200"
+                        >
+                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fuchsia-400" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <button
                   onClick={resetForm}
                   className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
@@ -524,6 +546,16 @@ function ClipboardIcon({ className = "size-4" }: { className?: string }) {
       <rect x="8" y="2" width="8" height="4" rx="1" />
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
       <path d="m9 14 2 2 4-4" />
+    </svg>
+  );
+}
+
+function LightbulbIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+      <path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2Z" />
     </svg>
   );
 }

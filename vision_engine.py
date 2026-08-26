@@ -187,6 +187,7 @@ class GeminiFormAnalysis(BaseModel):
     form_analysis_feedback: str
     form_corrections: list[str]
     flaw_highlights: list[FlawHighlight] = []
+    optimization_tips: list[str] = []
 
 
 PROMPT_TEMPLATE = """You are an experienced strength & conditioning coach reviewing a client's set.
@@ -249,8 +250,17 @@ Watch the attached video together with the pose-tracking summary above, then res
      wildly, we use this to pick which video frame to show.
    Empty list if detected_flaws is empty.
 
-If activity_mismatch is set, detected_flaws, form_corrections, and flaw_highlights should be
-empty lists and form_analysis_feedback can restate the mismatch briefly.
+8. "optimization_tips": 1-3 subtle refinements a more advanced lifter could use to get more out
+   of this specific rep — even when detected_flaws is empty and the execution is already safe
+   and correct. Think leverage, muscle-targeting emphasis, tempo, or mind-muscle connection cues
+   (e.g. a slight forward lean on a tricep pushdown shifts more of the tension onto the triceps
+   and off the elbows). These are NOT corrections to a problem — don't repeat anything already in
+   form_corrections, and don't invent a tip just to have one; leave this empty if the execution is
+   already about as good as it can reasonably be.
+
+If activity_mismatch is set, detected_flaws, form_corrections, flaw_highlights, and
+optimization_tips should be empty lists and form_analysis_feedback can restate the mismatch
+briefly.
 
 Respond only with the structured JSON.
 """
@@ -403,6 +413,7 @@ async def analyze(
             "detected_flaws": [],
             "form_analysis_feedback": analysis.activity_mismatch,
             "form_corrections": [],
+            "optimization_tips": [],
             "annotated_image": None,
         }
 
@@ -421,6 +432,7 @@ async def analyze(
         "detected_flaws": analysis.detected_flaws,
         "form_analysis_feedback": analysis.form_analysis_feedback,
         "form_corrections": analysis.form_corrections,
+        "optimization_tips": analysis.optimization_tips,
         "annotated_image": annotated_image,
     }
 

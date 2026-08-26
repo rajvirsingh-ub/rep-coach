@@ -10,6 +10,7 @@ export interface WorkoutHistoryEntry {
   feedback: string;
   detectedFlaws: string[];
   formCorrections: string[];
+  optimizationTips: string[];
   annotatedImage: string | null;
 }
 

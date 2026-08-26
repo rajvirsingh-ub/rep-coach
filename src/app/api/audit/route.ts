@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       detectedFlaws: [],
       formAnalysisFeedback: "",
       formCorrections: [],
+      optimizationTips: [],
       annotatedImage: null,
     });
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
         feedback: result.formAnalysisFeedback,
         detectedFlaws: result.detectedFlaws,
         formCorrections: result.formCorrections,
+        optimizationTips: result.optimizationTips,
         annotatedImage: result.annotatedImage,
       });
     } catch (historyError) {
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
         detectedFlaws: result.detectedFlaws,
         feedback: result.formAnalysisFeedback,
         formCorrections: result.formCorrections,
+        optimizationTips: result.optimizationTips,
         annotatedImage: result.annotatedImage,
       },
     });

@@ -7,6 +7,37 @@ in a passing conversation.
 
 ---
 
+## Added optimization tips, separate from flaw corrections — 2026-08-26
+
+Reported gap: a tricep pushdown with genuinely flawless execution got no
+suggestion to lean slightly forward — a technique refinement that would
+shift more tension onto the triceps and off the elbows — because
+`form_corrections` is conceptually tied to fixing a detected flaw, and
+there was no flaw here to correct. Added a distinct field for this
+category: refinements worth mentioning even when nothing is wrong.
+
+- `GeminiFormAnalysis` gained `optimization_tips: list[str]` — a new
+  prompt instruction (point 8) asks for 1-3 subtle refinements (leverage,
+  muscle-targeting emphasis, tempo, mind-muscle cues) even when
+  `detected_flaws` is empty, explicitly distinct from corrections to a
+  problem, and to leave it empty rather than inventing a tip for its own
+  sake.
+- Threaded through the entire stack: `vision.ts` → `graph.ts`
+  (`FormCorrectionState` gained the field) → `route.ts` → `Dashboard.tsx`
+  (new "Optimization Tips" card, fuchsia-accented and visually distinct
+  from the indigo "Form Corrections" card and amber "Detected Flaws"
+  pills, so it doesn't read as "something's wrong") → `history.ts`/
+  `db.ts` (new `optimization_tips` column, same migration-guard pattern
+  as the other `workout_history` schema changes, so it applies cleanly
+  to the already-existing production table without a manual migration
+  step).
+- Verified live end-to-end through the real UI-facing path (not just the
+  Python service directly): re-tested the exact tricep pushdown clip that
+  prompted this and got "Try adding a slight forward lean from the torso
+  to increase tension on the triceps" — confirmed it flows correctly
+  through the API response *and* persists/reads back correctly from the
+  newly-migrated DB column.
+
 ## Fixed false-positive flaws on genuinely clean reps — 2026-08-26
 
 Reported issue: real, well-executed squat videos were still coming back

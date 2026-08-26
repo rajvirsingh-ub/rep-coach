@@ -9,19 +9,21 @@ export const FormCorrectionState = Annotation.Root({
   detectedFlaws: Annotation<string[]>(),
   formAnalysisFeedback: Annotation<string>(),
   formCorrections: Annotation<string[]>(),
+  optimizationTips: Annotation<string[]>(),
   annotatedImage: Annotation<string | null>(),
 });
 
 export async function analyzeFormNode(state: typeof FormCorrectionState.State) {
   console.log(`[Vision Node] Analyzing: ${state.exerciseName}`);
 
-  const { detectedFlaws, formAnalysisFeedback, formCorrections, annotatedImage } =
+  const { detectedFlaws, formAnalysisFeedback, formCorrections, optimizationTips, annotatedImage } =
     await analyzeVideoFrames(state.exerciseName, state.videoUrl, state.userContext);
 
   return {
     detectedFlaws,
     formAnalysisFeedback,
     formCorrections,
+    optimizationTips,
     annotatedImage,
   };
 }

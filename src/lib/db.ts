@@ -65,6 +65,16 @@ async function migrate(): Promise<void> {
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_workout_history_user_id ON workout_history(user_id)"
   );
+
+  // Migration guard: workout_history may already exist from before
+  // optimization_tips was introduced.
+  const historyColumns = await db.execute("PRAGMA table_info(workout_history)");
+  const hasOptimizationTips = historyColumns.rows.some((row) => row.name === "optimization_tips");
+  if (!hasOptimizationTips) {
+    await db.execute(
+      "ALTER TABLE workout_history ADD COLUMN optimization_tips TEXT NOT NULL DEFAULT '[]'"
+    );
+  }
 }
 
 let migrated: Promise<void> | null = null;

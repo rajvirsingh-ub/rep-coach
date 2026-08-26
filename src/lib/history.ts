@@ -10,6 +10,7 @@ export interface StoredHistoryEntry {
   feedback: string;
   detectedFlaws: string[];
   formCorrections: string[];
+  optimizationTips: string[];
   annotatedImage: string | null;
   createdAt: number;
 }
@@ -25,8 +26,8 @@ export async function createHistoryEntry(
 
   await db.execute({
     sql: `INSERT INTO workout_history
-          (id, user_id, exercise_name, user_context, feedback, detected_flaws, form_corrections, annotated_image, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, user_id, exercise_name, user_context, feedback, detected_flaws, form_corrections, optimization_tips, annotated_image, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       userId,
@@ -35,6 +36,7 @@ export async function createHistoryEntry(
       entry.feedback,
       JSON.stringify(entry.detectedFlaws),
       JSON.stringify(entry.formCorrections),
+      JSON.stringify(entry.optimizationTips),
       entry.annotatedImage,
       createdAt,
     ],
@@ -58,7 +60,7 @@ export async function getHistoryForUser(userId: string): Promise<StoredHistoryEn
 
   const result = await db.execute({
     sql: `SELECT id, exercise_name, user_context, feedback, detected_flaws, form_corrections,
-                 annotated_image, created_at
+                 optimization_tips, annotated_image, created_at
           FROM workout_history WHERE user_id = ? ORDER BY created_at DESC`,
     args: [userId],
   });
@@ -70,6 +72,7 @@ export async function getHistoryForUser(userId: string): Promise<StoredHistoryEn
     feedback: row.feedback as string,
     detectedFlaws: JSON.parse(row.detected_flaws as string),
     formCorrections: JSON.parse(row.form_corrections as string),
+    optimizationTips: row.optimization_tips ? JSON.parse(row.optimization_tips as string) : [],
     annotatedImage: (row.annotated_image as string | null) ?? null,
     createdAt: Number(row.created_at),
   }));

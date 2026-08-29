@@ -130,6 +130,94 @@ Caddy requests a Let's Encrypt certificate automatically on first request —
 needs 80/443 reachable from the internet (already covered above) and DNS
 already pointing at this instance.
 
+### 9. Daily DB backup to S3
+
+`data/app.db` is a single flat file on this instance's own disk with no
+automatic redundancy — if the instance/volume were lost, this data goes
+with it. This sets up a daily snapshot uploaded to S3.
+
+**In the AWS Console/CLI on your own machine** (not the EC2 instance):
+
+```bash
+# 1. Create the bucket (pick a globally-unique name)
+aws s3api create-bucket --bucket rep-coach-backups-<something-unique> \
+  --region <REGION> --create-bucket-configuration LocationConstraint=<REGION>
+
+# 2. IAM policy scoped to just this bucket
+cat > backup-policy.json <<'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::REPLACE_BUCKET_NAME/app-db-backups/*" },
+    { "Effect": "Allow", "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::REPLACE_BUCKET_NAME" }
+  ]
+}
+EOF
+# edit REPLACE_BUCKET_NAME in the file above to your real bucket name, then:
+aws iam create-policy --policy-name rep-coach-backup-policy --policy-document file://backup-policy.json
+
+# 3. IAM role for the EC2 instance, attach the policy
+aws iam create-role --role-name rep-coach-backup-role --assume-role-policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [{ "Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole" }]
+}'
+aws iam attach-role-policy --role-name rep-coach-backup-role \
+  --policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/rep-coach-backup-policy
+aws iam create-instance-profile --instance-profile-name rep-coach-backup-profile
+aws iam add-role-to-instance-profile --instance-profile-name rep-coach-backup-profile --role-name rep-coach-backup-role
+
+# 4. Attach it to the running instance (no restart needed)
+aws ec2 associate-iam-instance-profile --instance-id <INSTANCE_ID> \
+  --iam-instance-profile Name=rep-coach-backup-profile
+```
+
+This uses an IAM instance role rather than static AWS access keys stored
+anywhere on the box — the same approach considered (though not ultimately
+needed, since Docker/ECR was dropped in favor of direct systemd — see
+`CHANGELOG.md`) earlier in this project.
+
+**On the EC2 instance:**
+
+```bash
+# AWS CLI (not otherwise needed since dropping the Docker/ECR plan)
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+unzip awscliv2.zip
+sudo ./aws/install
+rm -rf awscliv2.zip aws/
+
+# Add the bucket name to .env.production
+echo "REP_COACH_BACKUP_BUCKET=rep-coach-backups-<something-unique>" >> ~/rep-coach/.env.production
+
+cd ~/rep-coach
+sudo cp deploy/rep-coach-backup.service deploy/rep-coach-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now rep-coach-backup.timer
+
+# Trigger one manually right away to confirm it actually works end-to-end
+# rather than waiting until 3am to find out:
+sudo systemctl start rep-coach-backup.service
+sudo journalctl -u rep-coach-backup.service -n 20 --no-pager
+aws s3 ls s3://rep-coach-backups-<something-unique>/app-db-backups/
+```
+
+Runs daily at 03:00 UTC via `rep-coach-backup.timer`
+(`systemctl list-timers` to confirm it's scheduled). Uses `sqlite3
+... VACUUM INTO` for a transactionally-consistent snapshot — safe to run
+while the app is live, not a raw `cp` of a file that's actively being
+written to. Consider adding an S3 lifecycle rule on the
+`app-db-backups/` prefix if you want old backups to auto-expire after N
+days.
+
+**Restoring from a backup:**
+
+```bash
+sudo systemctl stop rep-coach-web rep-coach-vision
+aws s3 cp s3://<bucket>/app-db-backups/app-<timestamp>.db ~/rep-coach/data/app.db
+sudo systemctl start rep-coach-web rep-coach-vision
+```
+
 ---
 
 ## Day-2: deploying an update later

@@ -1,0 +1,11 @@
+[Unit]
+Description=Rep Coach - Backup SQLite DB to S3
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rep-coach
+EnvironmentFile=/home/ubuntu/rep-coach/.env.production
+ExecStart=/bin/bash /home/ubuntu/rep-coach/deploy/rep-coach-backup.sh

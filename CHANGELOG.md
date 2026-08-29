@@ -7,6 +7,32 @@ in a passing conversation.
 
 ---
 
+## Daily DB backup to S3 — 2026-08-29
+
+`data/app.db` was a single flat file on the EC2 instance's own disk with
+no redundancy at all — flagged during a walkthrough of exactly how/where
+data is stored, then asked to fix it.
+
+- New `deploy/rep-coach-backup.sh`: uses `sqlite3 ... VACUUM INTO` for a
+  transactionally-consistent snapshot (safe to run against a live,
+  actively-written-to database — not a raw `cp`, which could grab a
+  half-written file mid-transaction), uploads it to S3 via the AWS CLI,
+  cleans up the local temp copy.
+- `deploy/rep-coach-backup.service` (oneshot) + `.timer` (daily at 03:00
+  UTC, `Persistent=true` so a missed run due to downtime catches up on
+  next boot) — same `systemd` idiom as the rest of this deployment,
+  rather than introducing crontab as a second scheduling mechanism.
+- Uses an **IAM instance role** for S3 access (`s3:PutObject`/`GetObject`
+  scoped to just the one bucket's `app-db-backups/` prefix, plus
+  `ListBucket`) — no static AWS access keys stored on the instance.
+  `DEPLOY.md` has the full one-time AWS-side setup (bucket, policy, role,
+  instance-profile attachment) plus restore instructions.
+- Verified the core mechanism locally before writing the deploy docs
+  around it: ran `VACUUM INTO` against the real local `data/app.db` and
+  confirmed the resulting file is a complete, valid, standalone SQLite
+  database (all three tables present, real row counts correct) — not
+  just assumed the command works.
+
 ## Added optimization tips, separate from flaw corrections — 2026-08-26
 
 Reported gap: a tricep pushdown with genuinely flawless execution got no

@@ -7,6 +7,43 @@ in a passing conversation.
 
 ---
 
+## S3 access method for the backup script: alternatives considered — 2026-08-29
+
+No code changes here — a decision record from working through the actual
+AWS-console-side setup for the backup feature above, worth capturing so
+none of these get re-litigated or accidentally implemented later:
+
+- **S3 Access Points** (a distinct AWS resource — a named endpoint on the
+  bucket with its own resource policy) were considered when asked about
+  an "access point policy." Rejected as unnecessary complexity for a
+  single-instance setup — a plain bucket + IAM role, which is what's
+  already implemented, does the same job with fewer moving parts. Access
+  Points earn their keep at multi-team/VPC-scoped-access scale, not here.
+- **Restricting the bucket by source IP** (`aws:SourceIp` condition) was
+  considered as a simpler-seeming alternative to an IAM role. Rejected:
+  doing this *without* also requiring valid AWS credentials means setting
+  `Principal: "*"` — i.e. making the bucket genuinely public, just
+  narrowed to one IP. Anyone hitting that IP gets in with zero
+  authentication. AWS's own "Block Public Access" default (on every new
+  bucket) exists specifically to prevent this pattern, and would need to
+  be manually disabled to even attempt it.
+- **A single AWS access key with full/admin access, "entered once during
+  setup"** was considered as a way to avoid touching `.env.production`.
+  Rejected on a technical correction, not just a preference: the backup
+  script runs unattended via a systemd timer, so credentials must be
+  readable from disk on every run with no one present to type anything in.
+  `aws configure` "entering it once" writes the key to
+  `~/.aws/credentials` in plaintext for exactly that reason — same
+  on-disk exposure as `.env.production`, just a different filename, and
+  "full access" turns any future leak of that file into a full-account
+  compromise instead of a scoped one.
+- Landed on the already-implemented **IAM instance role**, scoped to
+  `s3:PutObject`/`GetObject` on just the `app-db-backups/` prefix plus
+  `ListBucket` on that one bucket — the only option requiring zero
+  credential material stored anywhere on the instance at all (AWS's EC2
+  metadata service hands out short-lived, auto-rotating temporary
+  credentials automatically).
+
 ## Daily DB backup to S3 — 2026-08-29
 
 `data/app.db` was a single flat file on the EC2 instance's own disk with
